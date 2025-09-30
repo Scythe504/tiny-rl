@@ -18,6 +18,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	r.HandleFunc("/health", s.healthHandler)
 
+	r.HandleFunc("/api/shorten", s.shortenURL)
+
 	return r
 }
 
@@ -60,4 +62,8 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, _ = w.Write(jsonResp)
+}
+
+func (s *Server) shortenURL(w http.ResponseWriter, r *http.Request) {
+	
 }
