@@ -2,10 +2,16 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/scythe504/tiny-rl/internal"
+	"github.com/scythe504/tiny-rl/internal/database"
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
@@ -65,5 +71,76 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) shortenURL(w http.ResponseWriter, r *http.Request) {
-	
+	body, err := io.ReadAll(r.Body)
+
+	// TODO: LOAD IN FROM ENV VAR
+	const backendUrl = "http://localhost:8080"
+
+	if err != nil {
+		log.Println("[ShortenURL] error while reading body: ", err)
+		http.Error(w, "error in reading the request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var link struct {
+		URL string `json:"url"`
+	}
+
+	if err = json.Unmarshal(body, &link); err != nil {
+		log.Println("[ShortenURL] error while unmarshaling json ", err)
+		http.Error(w, "error in parsing request body", http.StatusInternalServerError)
+		return
+	}
+
+	if !internal.ValidURL(link.URL) {
+		http.Error(w, "invalid url format, we do not support these format", http.StatusBadRequest)
+		return
+	}
+
+	count := 0
+	shortCode := internal.ShortCode()
+	link_map := database.LinkMap{
+		Id:  shortCode,
+		Url: link.URL,
+	}
+	for {
+		if count > 5 {
+			http.Error(w, "error while generating short code", http.StatusInternalServerError)
+			return
+		}
+		err = s.db.InsertShortenedLink(link_map)
+		if err != nil {
+			var pgErr *pgconn.PgError
+
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				link_map.Id = internal.ShortCode()
+				log.Println("[ShortenURL] duplicate key, retrying with new code")
+				count++
+				continue
+			}
+
+			// It's some other error - don't retry
+			log.Println("[ShortenURL] database error: ", err)
+			http.Error(w, "database error", http.StatusInternalServerError)
+			return
+		} else {
+			break
+		}
+	}
+
+	var resp = struct {
+		Data string `json:"data"`
+	}{
+		Data: fmt.Sprintf("%s/%s", backendUrl, shortCode),
+	}
+
+	jsonResp, err := json.Marshal(resp)
+	if err != nil {
+		log.Println("[ShortenURL] error while marshaling resp into json ", err)
+		http.Error(w, "error while sending shortened url", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResp)
 }
