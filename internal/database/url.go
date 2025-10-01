@@ -14,7 +14,7 @@ type LinkMap struct {
 }
 
 func (s *service) InsertShortenedLink(link LinkMap) error {
-	stmt, err := s.db.Prepare(`INSERT INTO time_map (id, url) VALUES (?, ?)`)
+	stmt, err := s.db.Prepare(`INSERT INTO link_map (id, url) VALUES ($1, $2)`)
 	if err != nil {
 		log.Println("[InsertShortenedLink] statement error: ", err)
 		return err
@@ -32,7 +32,7 @@ func (s *service) InsertShortenedLink(link LinkMap) error {
 }
 
 func (s *service) GetLink(id string) (*LinkMap, error) {
-	stmt, err := s.db.Prepare(`SELECT (id, url, created_at, updated_at) FROM link_map WHERE id = ?`)
+	stmt, err := s.db.Prepare(`SELECT (id, url, created_at, updated_at) FROM link_map WHERE id = $1`)
 	if err != nil {
 		log.Println("[GetLink] statement error: ", err)
 		return nil, err
