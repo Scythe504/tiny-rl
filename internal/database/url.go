@@ -32,7 +32,13 @@ func (s *service) InsertShortenedLink(link LinkMap) error {
 }
 
 func (s *service) GetLink(id string) (*LinkMap, error) {
-	stmt, err := s.db.Prepare(`SELECT (id, url, created_at, updated_at) FROM link_map WHERE id = $1`)
+	stmt, err := s.db.Prepare(`SELECT 
+	 id,
+	 url, 
+	 created_at, 
+	 updated_at 
+	 FROM link_map 
+	 WHERE id = $1`)
 	if err != nil {
 		log.Println("[GetLink] statement error: ", err)
 		return nil, err
@@ -42,8 +48,8 @@ func (s *service) GetLink(id string) (*LinkMap, error) {
 	row := stmt.QueryRow(id)
 
 	link := LinkMap{
-		Id: "",
-		Url: "",
+		Id:        "",
+		Url:       "",
 		CreatedAt: &time.Time{},
 		UpdatedAt: &time.Time{},
 	}

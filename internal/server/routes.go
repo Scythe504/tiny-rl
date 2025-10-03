@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/scythe504/tiny-rl/internal"
 	"github.com/scythe504/tiny-rl/internal/database"
@@ -25,6 +26,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.HandleFunc("/health", s.healthHandler)
 
 	r.HandleFunc("/api/shorten", s.shortenURL)
+
+	r.HandleFunc("/{shortCode}", s.getFullUrl)
 
 	return r
 }
@@ -89,7 +92,7 @@ func (s *Server) shortenURL(w http.ResponseWriter, r *http.Request) {
 
 	if err = json.Unmarshal(body, &link); err != nil {
 		log.Println("[ShortenURL] error while unmarshaling json ", err)
-		http.Error(w, "error in parsing request body", http.StatusInternalServerError)
+		http.Error(w, "error in parsing request body", http.StatusBadRequest)
 		return
 	}
 
@@ -139,6 +142,42 @@ func (s *Server) shortenURL(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("[ShortenURL] error while marshaling resp into json ", err)
 		http.Error(w, "error while sending shortened url", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResp)
+}
+
+func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
+	shCode := mux.Vars(r)["shortCode"]
+
+	linkMap, err := s.db.GetLink(shCode)
+	if err != nil {
+		switch err.Error() {
+		case pgx.ErrNoRows.Error():
+			http.Error(w, "short url is invalid", http.StatusNotFound)
+			return
+		default:
+			log.Println("[GetFullUrl] error occured while getting link", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	var resp map[string]any = make(map[string]any)
+
+	resp["data"] = struct {
+		Id  string `json:"id"`
+		Url string `json:"url"`
+	}{
+		Id:  linkMap.Id,
+		Url: linkMap.Url,
+	}
+
+	jsonResp, err := json.Marshal(resp)
+	if err != nil {
+		log.Println("[GetFullUrl] error while marshaling resp into json ", err)
+		http.Error(w, "Failed to redirect to url", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
