@@ -22,7 +22,8 @@ type Service interface {
 	InsertShortenedLink(link LinkMap) error
 
 	LogClick(click Clicks) error
-	GetClicksOverTime(shortCode string) ([]ClicksOnDay, error)
+	GetClicksOverTime(shortCode string) ([]ClicksPerDay, error)
+	GetBrowserStats(shortCode string) ([]ClicksPerBrowser, error)
 	// Close terminates the database connection.
 	// It returns an error if the connection cannot be closed.
 	Close() error

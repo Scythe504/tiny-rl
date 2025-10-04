@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/mileusna/useragent"
 	"github.com/scythe504/tiny-rl/internal"
 	"github.com/scythe504/tiny-rl/internal/database"
 )
@@ -30,7 +31,9 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	r.HandleFunc("/api/shorten", s.shortenURL)
 
-	r.HandleFunc("/api/analytics/{shortCode}", s.getClicksAnalytics)
+	r.HandleFunc("/api/analytics/{shortCode}/days", s.getClicksAnalytics)
+
+	r.HandleFunc("/api/analytics/{shortCode}/browsers", s.getBrowserAnalytics)
 
 	return r
 }
@@ -169,12 +172,19 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		userAgent := r.UserAgent()
 		referrer := r.Referer()
+		ua := useragent.Parse(userAgent)
+		browserName := ua.Name
+		if browserName == "" {
+			browserName = "Unknown"
+		}
+
 		ipAddr := r.RemoteAddr
 		click := database.Clicks{
 			ShortCode: linkMap.ShortCode,
 			UserAgent: userAgent,
 			Referrer:  referrer,
 			IpAddr:    ipAddr,
+			Browser:   browserName,
 			ClickedAt: time.Now(),
 		}
 
@@ -220,12 +230,38 @@ func (s *Server) getClicksAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var resp map[string]any = make(map[string]any)
-	resp["data"] = clicksOverTime
-	jsonResp, err := json.Marshal(resp)
+	jsonResp, err := json.Marshal(clicksOverTime)
 
 	if err != nil {
 		log.Println("[GetClicksAnalytics] Error while Marshaling data", err)
+		http.Error(w, "failed to send data", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResp)
+}
+
+func (s *Server) getBrowserAnalytics(w http.ResponseWriter, r *http.Request) {
+	shortCode := mux.Vars(r)["shortCode"]
+
+	clicksPerBrowser, err := s.db.GetBrowserStats(shortCode)
+	if err != nil {
+		switch err {
+		case pgx.ErrNoRows:
+			log.Println("[GetBrowserAnalytics] No one has clicked this link", err)
+			http.Error(w, "No data has been captured for this short link", http.StatusNoContent)
+		default:
+			log.Println("[GetBrowserAnalytics] Some error occured: ", err)
+			http.Error(w, "Some error occured, please check if the short link is valid, or try again later", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	jsonResp, err := json.Marshal(clicksPerBrowser)
+
+	if err != nil {
+		log.Println("[GetBrowserAnalytics] Error while Marshaling data", err)
 		http.Error(w, "failed to send data", http.StatusInternalServerError)
 		return
 	}
