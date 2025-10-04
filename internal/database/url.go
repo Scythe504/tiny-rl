@@ -1,9 +1,10 @@
 package database
 
 import (
-	"database/sql"
 	"log"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type LinkMap struct {
@@ -46,7 +47,7 @@ func (s *service) GetLink(short_code string) (*LinkMap, error) {
 
 	err := row.Scan(&link.ShortCode, &link.Url, &link.CreatedAt, &link.UpdatedAt)
 
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && err != pgx.ErrNoRows {
 		log.Println("[GetLink] error occured while copying data: ", err)
 		return nil, err
 	}

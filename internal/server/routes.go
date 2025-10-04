@@ -26,9 +26,11 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	r.HandleFunc("/health", s.healthHandler)
 
+	r.HandleFunc("/{shortCode}", s.getFullUrl)
+
 	r.HandleFunc("/api/shorten", s.shortenURL)
 
-	r.HandleFunc("/{shortCode}", s.getFullUrl)
+	r.HandleFunc("/api/analytics/{shortCode}", s.getClicksAnalytics)
 
 	return r
 }
@@ -157,23 +159,22 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 		switch err.Error() {
 		case pgx.ErrNoRows.Error():
 			http.Error(w, "short url is invalid", http.StatusNotFound)
-			return
 		default:
 			log.Println("[GetFullUrl] error occured while getting link", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
 		}
+		return
 	}
 
 	go func() {
 		userAgent := r.UserAgent()
 		referrer := r.Referer()
 		ipAddr := r.RemoteAddr
-		click := database.Clicks {
+		click := database.Clicks{
 			ShortCode: linkMap.ShortCode,
 			UserAgent: userAgent,
-			Referrer: referrer,
-			IpAddr: ipAddr,
+			Referrer:  referrer,
+			IpAddr:    ipAddr,
 			ClickedAt: time.Now(),
 		}
 
@@ -199,6 +200,36 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to redirect to url", http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResp)
+}
+
+func (s *Server) getClicksAnalytics(w http.ResponseWriter, r *http.Request) {
+	shortCode := mux.Vars(r)["shortCode"]
+
+	clicksOverTime, err := s.db.GetClicksOverTime(shortCode)
+	if err != nil {
+		switch err {
+		case pgx.ErrNoRows:
+			log.Println("[GetClicksAnalytics] No one has clicked this link", err)
+			http.Error(w, "No data has been captured for this short link", http.StatusNoContent)
+		default:
+			log.Println("[GetClicksAnalytics] Some error occured: ", err)
+			http.Error(w, "Some error occured, please check if the short link is valid, or try again later", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	var resp map[string]any = make(map[string]any)
+	resp["data"] = clicksOverTime
+	jsonResp, err := json.Marshal(resp)
+
+	if err != nil {
+		log.Println("[GetClicksAnalytics] Error while Marshaling data", err)
+		http.Error(w, "failed to send data", http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonResp)
 }
