@@ -7,21 +7,16 @@ import (
 )
 
 type LinkMap struct {
-	Id        string     `db:"id"`
+	ShortCode string     `db:"short_code"`
 	Url       string     `db:"url"`
 	CreatedAt *time.Time `db:"created_at"`
 	UpdatedAt *time.Time `db:"updated_at"`
 }
 
 func (s *service) InsertShortenedLink(link LinkMap) error {
-	stmt, err := s.db.Prepare(`INSERT INTO link_map (id, url) VALUES ($1, $2)`)
-	if err != nil {
-		log.Println("[InsertShortenedLink] statement error: ", err)
-		return err
-	}
-	defer stmt.Close()
+	stmt := `INSERT INTO link_map (short_code, url) VALUES ($1, $2)`
 
-	_, err = stmt.Exec(link.Id, link.Url)
+	_, err := s.db.Exec(stmt, link.ShortCode, link.Url)
 
 	if err != nil {
 		log.Println("[InsertShortenedLink] Insert statment error: ", err)
@@ -31,30 +26,25 @@ func (s *service) InsertShortenedLink(link LinkMap) error {
 	return nil
 }
 
-func (s *service) GetLink(id string) (*LinkMap, error) {
-	stmt, err := s.db.Prepare(`SELECT 
-	 id,
+func (s *service) GetLink(short_code string) (*LinkMap, error) {
+	stmt := `SELECT 
+	 short_code,
 	 url, 
 	 created_at, 
 	 updated_at 
 	 FROM link_map 
-	 WHERE id = $1`)
-	if err != nil {
-		log.Println("[GetLink] statement error: ", err)
-		return nil, err
-	}
-	defer stmt.Close()
+	 WHERE short_code = $1`
 
-	row := stmt.QueryRow(id)
+	row := s.db.QueryRow(stmt, short_code)
 
 	link := LinkMap{
-		Id:        "",
+		ShortCode: "",
 		Url:       "",
 		CreatedAt: &time.Time{},
 		UpdatedAt: &time.Time{},
 	}
 
-	err = row.Scan(&link.Id, &link.Url, &link.CreatedAt, &link.UpdatedAt)
+	err := row.Scan(&link.ShortCode, &link.Url, &link.CreatedAt, &link.UpdatedAt)
 
 	if err != nil && err != sql.ErrNoRows {
 		log.Println("[GetLink] error occured while copying data: ", err)

@@ -21,6 +21,7 @@ type Service interface {
 	GetLink(id string) (*LinkMap, error)
 	InsertShortenedLink(link LinkMap) error
 
+	LogClick(click Clicks) error
 	// Close terminates the database connection.
 	// It returns an error if the connection cannot be closed.
 	Close() error

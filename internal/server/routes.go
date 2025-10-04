@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5"
@@ -104,8 +105,8 @@ func (s *Server) shortenURL(w http.ResponseWriter, r *http.Request) {
 	count := 0
 	shortCode := internal.ShortCode()
 	link_map := database.LinkMap{
-		Id:  shortCode,
-		Url: link.URL,
+		ShortCode: shortCode,
+		Url:       link.URL,
 	}
 	for {
 		if count > 5 {
@@ -117,7 +118,7 @@ func (s *Server) shortenURL(w http.ResponseWriter, r *http.Request) {
 			var pgErr *pgconn.PgError
 
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				link_map.Id = internal.ShortCode()
+				link_map.ShortCode = internal.ShortCode()
 				log.Println("[ShortenURL] duplicate key, retrying with new code")
 				count++
 				continue
@@ -164,14 +165,32 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	go func() {
+		userAgent := r.UserAgent()
+		referrer := r.Referer()
+		ipAddr := r.RemoteAddr
+		click := database.Clicks {
+			ShortCode: linkMap.ShortCode,
+			UserAgent: userAgent,
+			Referrer: referrer,
+			IpAddr: ipAddr,
+			ClickedAt: time.Now(),
+		}
+
+		if err := s.db.LogClick(click); err != nil {
+			log.Println("[GoroutineLogClick] error occured while logging clicks", err)
+			return
+		}
+	}()
+
 	var resp map[string]any = make(map[string]any)
 
 	resp["data"] = struct {
-		Id  string `json:"id"`
-		Url string `json:"url"`
+		ShortCode string `json:"short_code"`
+		Url       string `json:"url"`
 	}{
-		Id:  linkMap.Id,
-		Url: linkMap.Url,
+		ShortCode: linkMap.ShortCode,
+		Url:       linkMap.Url,
 	}
 
 	jsonResp, err := json.Marshal(resp)
