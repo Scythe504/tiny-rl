@@ -35,6 +35,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	r.HandleFunc("/api/analytics/{shortCode}/browsers", s.getBrowserAnalytics)
 
+	r.HandleFunc("/api/analytics/{shortCode}/referrers", s.getReferrerAnalytics)
+
 	return r
 }
 
@@ -175,7 +177,11 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 		ua := useragent.Parse(userAgent)
 		browserName := ua.Name
 		if browserName == "" {
-			browserName = "Unknown"
+			browserName = "Other"
+		}
+
+		if referrer == "" {
+			referrer = "direct"
 		}
 
 		ipAddr := r.RemoteAddr
@@ -262,6 +268,34 @@ func (s *Server) getBrowserAnalytics(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Println("[GetBrowserAnalytics] Error while Marshaling data", err)
+		http.Error(w, "failed to send data", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResp)
+}
+
+func (s *Server) getReferrerAnalytics(w http.ResponseWriter, r *http.Request) {
+	shortCode := mux.Vars(r)["shortCode"]
+
+	trafficFromReferrers, err := s.db.GetReferrerStats(shortCode)
+	if err != nil {
+		switch err {
+		case pgx.ErrNoRows:
+			log.Println("[GetReferrerAnalytics] No one has clicked this link", err)
+			http.Error(w, "No data has been captured for this short link", http.StatusNoContent)
+		default:
+			log.Println("[GetReferrerAnalytics] Some error occured: ", err)
+			http.Error(w, "Some error occured, please check if the short link is valid, or try again later", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	jsonResp, err := json.Marshal(trafficFromReferrers)
+
+	if err != nil {
+		log.Println("[GetReferrerAnalytics] Error while Marshaling data", err)
 		http.Error(w, "failed to send data", http.StatusInternalServerError)
 		return
 	}

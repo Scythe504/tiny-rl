@@ -24,7 +24,12 @@ type ClicksPerDay struct {
 
 type ClicksPerBrowser struct {
 	Browser    string `db:"browser" json:"browser"`
-	ClickCount string `db:"click_count" json:"click_count"`
+	ClickCount int    `db:"click_count" json:"click_count"`
+}
+
+type TrafficFromReferrer struct {
+	Referrer   string `db:"referrer" json:"referrer"`
+	ClickCount int    `db:"click_count" json:"click_count"`
 }
 
 func (s *service) LogClick(click Clicks) error {
@@ -110,4 +115,32 @@ func (s *service) GetBrowserStats(shortCode string) ([]ClicksPerBrowser, error) 
 	}
 
 	return clicksPerBrowsers, nil
+}
+
+func (s *service) GetReferrerStats(shortCode string) ([]TrafficFromReferrer, error) {
+	stmt := `SELECT referrer, COUNT(*) AS click_count
+						FROM clicks
+						WHERE short_code=$1
+						GROUP BY referrer
+						ORDER BY click_count DESC;`
+	rows, err := s.db.Query(stmt, shortCode)
+	if err != nil && err != pgx.ErrNoRows {
+		log.Println("[GetReferrerStats] error occured while querying", rows)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var trafficFromReferrers []TrafficFromReferrer = make([]TrafficFromReferrer, 0)
+
+	for rows.Next() {
+		var trafficFromReferrer TrafficFromReferrer
+		if err := rows.Scan(&trafficFromReferrer.Referrer, &trafficFromReferrer.ClickCount); err != nil {
+			log.Println("[GetReferrerStats] error occured while scanning to variable", err)
+			return nil, err
+		}
+
+		trafficFromReferrers = append(trafficFromReferrers, trafficFromReferrer)
+	}
+
+	return trafficFromReferrers, nil
 }

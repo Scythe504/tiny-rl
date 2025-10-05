@@ -24,6 +24,7 @@ type Service interface {
 	LogClick(click Clicks) error
 	GetClicksOverTime(shortCode string) ([]ClicksPerDay, error)
 	GetBrowserStats(shortCode string) ([]ClicksPerBrowser, error)
+	GetReferrerStats(shortCode string) ([]TrafficFromReferrer, error)
 	// Close terminates the database connection.
 	// It returns an error if the connection cannot be closed.
 	Close() error
