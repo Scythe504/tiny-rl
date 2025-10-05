@@ -8,13 +8,15 @@ import (
 )
 
 type Clicks struct {
-	Id        string    `db:"id" json:"id"`
-	ShortCode string    `db:"short_code" json:"short_code"`
-	Browser   string    `db:"browser" json:"browser"`
-	ClickedAt time.Time `db:"clicked_at" json:"clicked_at"`
-	UserAgent string    `db:"user_agent" json:"user_agent"`
-	IpAddr    string    `db:"ip_addr" json:"ip_addr"`
-	Referrer  string    `db:"referrer" json:"referrer"`
+	Id             string    `db:"id" json:"id"`
+	ShortCode      string    `db:"short_code" json:"short_code"`
+	Browser        string    `db:"browser" json:"browser"`
+	ClickedAt      time.Time `db:"clicked_at" json:"clicked_at"`
+	UserAgent      string    `db:"user_agent" json:"user_agent"`
+	IpAddr         string    `db:"ip_addr" json:"ip_addr"`
+	Referrer       string    `db:"referrer" json:"referrer"`
+	Country        string    `db:"country" json:"country"`
+	CountryISOCode string    `db:"country_iso_code" json:"country_iso_code"`
 }
 
 type ClicksPerDay struct {
@@ -32,13 +34,20 @@ type TrafficFromReferrer struct {
 	ClickCount int    `db:"click_count" json:"click_count"`
 }
 
+type TrafficFromCountry struct {
+	CountryISOCode string `db:"country_iso_code" json:"country_iso_code"`
+	ClickCount     int    `db:"click_count" json:"click_count"`
+}
+
 func (s *service) LogClick(click Clicks) error {
 	stmt := `INSERT INTO clicks (
 			short_code, 
 			ip_addr, 
 			user_agent,
 			browser, 
-			referrer, 
+			referrer,
+			country,
+			country_iso_code,
 			clicked_at
 		) VALUES (
 			$1,
@@ -46,10 +55,21 @@ func (s *service) LogClick(click Clicks) error {
 			$3, 
 			$4, 
 			$5,
-			$6
+			$6,
+			$7,
+			$8
 		)`
 
-	_, err := s.db.Exec(stmt, click.ShortCode, click.IpAddr, click.UserAgent, click.Browser, click.Referrer, click.ClickedAt)
+	_, err := s.db.Exec(stmt,
+		click.ShortCode,
+		click.IpAddr,
+		click.UserAgent,
+		click.Browser,
+		click.Referrer,
+		click.Country,
+		click.CountryISOCode,
+		click.ClickedAt,
+	)
 	if err != nil {
 		log.Println("[LogClick] Error occured when Executing statement: ", err)
 		return err
@@ -143,4 +163,32 @@ func (s *service) GetReferrerStats(shortCode string) ([]TrafficFromReferrer, err
 	}
 
 	return trafficFromReferrers, nil
+}
+
+func (s *service) GetCountryStats(shortCode string) ([]TrafficFromCountry, error) {
+	stmt := `SELECT country_iso_code, COUNT(*) AS click_count
+						FROM clicks
+						WHERE short_code=$1
+						GROUP BY country_iso_code
+						ORDER BY click_count DESC;`
+	rows, err := s.db.Query(stmt, shortCode)
+	if err != nil && err != pgx.ErrNoRows {
+		log.Println("[GetCountryStats] error occured while querying", rows)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var trafficFromCountries []TrafficFromCountry = make([]TrafficFromCountry, 0)
+
+	for rows.Next() {
+		var trafficFromCountry TrafficFromCountry
+		if err := rows.Scan(&trafficFromCountry.CountryISOCode, &trafficFromCountry.ClickCount); err != nil {
+			log.Println("[GetCountryStats] error occured while scanning to variable", err)
+			return nil, err
+		}
+
+		trafficFromCountries = append(trafficFromCountries, trafficFromCountry)
+	}
+
+	return trafficFromCountries, nil
 }

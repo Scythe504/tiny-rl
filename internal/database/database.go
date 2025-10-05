@@ -25,6 +25,7 @@ type Service interface {
 	GetClicksOverTime(shortCode string) ([]ClicksPerDay, error)
 	GetBrowserStats(shortCode string) ([]ClicksPerBrowser, error)
 	GetReferrerStats(shortCode string) ([]TrafficFromReferrer, error)
+	GetCountryStats(shortCode string) ([]TrafficFromCountry, error)
 	// Close terminates the database connection.
 	// It returns an error if the connection cannot be closed.
 	Close() error

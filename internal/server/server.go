@@ -10,20 +10,21 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 
 	"github.com/scythe504/tiny-rl/internal/database"
+	"github.com/scythe504/tiny-rl/internal/geodatabase"
 )
 
 type Server struct {
-	port int
-
-	db database.Service
+	port   int
+	geo_db geodatabase.Service
+	db     database.Service
 }
 
 func NewServer() *http.Server {
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
 	NewServer := &Server{
-		port: port,
-
-		db: database.New(),
+		port:   port,
+		geo_db: geodatabase.New(),
+		db:     database.New(),
 	}
 
 	// Declare Server config

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -36,6 +37,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.HandleFunc("/api/analytics/{shortCode}/browsers", s.getBrowserAnalytics)
 
 	r.HandleFunc("/api/analytics/{shortCode}/referrers", s.getReferrerAnalytics)
+
+	r.HandleFunc("/api/analytics/{shortCode}/countries", s.getCountryAnalytics)
 
 	return r
 }
@@ -179,24 +182,44 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 		if browserName == "" {
 			browserName = "Other"
 		}
-
 		if referrer == "" {
 			referrer = "direct"
 		}
 
-		ipAddr := r.RemoteAddr
+		ipAddr := internal.GetClientIP(r)
+		parsedIP := net.ParseIP(ipAddr)
+		// parsedIP := net.ParseIP("8.8.8.8") // For testing geoip2 works fine or not
+
+		geoIpCountry, err := s.geo_db.GetCountryByIP(parsedIP)
+		if err != nil {
+			log.Println("[GoroutineLogClick] error parsing ipaddr", ipAddr, err)
+			return
+		}
+
+		countryName := "India"  // default fallback for local/dev
+		countryIsoCode := "IND" // default fallback
+
+		if geoIpCountry != nil && geoIpCountry.Country.IsoCode != "" {
+			name := geoIpCountry.Country.Names["en"]
+			if name != "" {
+				countryName = name
+			}
+			countryIsoCode = geoIpCountry.Country.IsoCode
+		}
+
 		click := database.Clicks{
-			ShortCode: linkMap.ShortCode,
-			UserAgent: userAgent,
-			Referrer:  referrer,
-			IpAddr:    ipAddr,
-			Browser:   browserName,
-			ClickedAt: time.Now(),
+			ShortCode:      linkMap.ShortCode,
+			UserAgent:      userAgent,
+			Referrer:       referrer,
+			IpAddr:         parsedIP.String(),
+			Browser:        browserName,
+			Country:        countryName,
+			CountryISOCode: countryIsoCode,
+			ClickedAt:      time.Now(),
 		}
 
 		if err := s.db.LogClick(click); err != nil {
-			log.Println("[GoroutineLogClick] error occured while logging clicks", err)
-			return
+			log.Println("[GoroutineLogClick] error logging click:", err)
 		}
 	}()
 
@@ -296,6 +319,34 @@ func (s *Server) getReferrerAnalytics(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Println("[GetReferrerAnalytics] Error while Marshaling data", err)
+		http.Error(w, "failed to send data", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResp)
+}
+
+func (s *Server) getCountryAnalytics(w http.ResponseWriter, r *http.Request) {
+	shortCode := mux.Vars(r)["shortCode"]
+
+	trafficFromCountries, err := s.db.GetCountryStats(shortCode)
+	if err != nil {
+		switch err {
+		case pgx.ErrNoRows:
+			log.Println("[GetCountryAnalytics] No one has clicked this link", err)
+			http.Error(w, "No data has been captured for this short link", http.StatusNoContent)
+		default:
+			log.Println("[GetCountryAnalytics] Some error occured: ", err)
+			http.Error(w, "Some error occured, please check if the short link is valid, or try again later", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	jsonResp, err := json.Marshal(trafficFromCountries)
+
+	if err != nil {
+		log.Println("[GetCountryAnalytics] Error while Marshaling data", err)
 		http.Error(w, "failed to send data", http.StatusInternalServerError)
 		return
 	}
