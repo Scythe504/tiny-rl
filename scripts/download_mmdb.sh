@@ -15,13 +15,25 @@ fi
 
 echo "Downloading from MaxMind..."
 
+# Create a temporary directory for this operation
+TEMP_DIR=$(mktemp -d)
+trap 'rm -rf $TEMP_DIR' EXIT
+
 curl -L -u "${MAXMIND_ACCOUNT_ID}:${MAXMIND_LICENSE_KEY}" \
     "https://download.maxmind.com/geoip/databases/GeoLite2-Country/download?suffix=tar.gz" \
-    -o /tmp/mmdb.tar.gz
+    -o "$TEMP_DIR/mmdb.tar.gz"
 
-tar -xzf /tmp/mmdb.tar.gz -C /tmp
-find /tmp -name "*.mmdb" -exec mv {} /app/data/GeoLite2-Country.mmdb \;
+echo "Extracting archive..."
+tar -xzf "$TEMP_DIR/mmdb.tar.gz" -C "$TEMP_DIR"
 
-rm -rf /tmp/mmdb.tar.gz /tmp/*
+# Find and move the .mmdb file
+MMDB_FILE=$(find "$TEMP_DIR" -name "*.mmdb" -type f | head -n 1)
+
+if [ -z "$MMDB_FILE" ]; then
+    echo "Error: Could not find .mmdb file in downloaded archive"
+    exit 1
+fi
+
+mv "$MMDB_FILE" /app/data/GeoLite2-Country.mmdb
 
 echo "GeoLite2-Country.mmdb downloaded successfully to /app/data/"

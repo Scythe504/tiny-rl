@@ -1,0 +1,62 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Documentation
+README.md
+*.md
+docs/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+tiny-rl
+build/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+**/*_test.go
+testdata/
+
+# Development tools
+.air.toml
+Makefile
+
+# Docker files (no need to copy these into the image)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Data directories (if you have local data)
+data/
+*.mmdb
+
+# Node modules (if you have any frontend)
+node_modules/
+npm-debug.log
+
+# Go specific
+vendor/
