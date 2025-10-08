@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	HASH_SALT = os.Getenv("HASH_SALT")
+	HASH_SALT    = os.Getenv("HASH_SALT")
+	FRONTEND_URL = os.Getenv("FRONTEND_URL")
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
@@ -95,7 +96,7 @@ func (s *Server) shortenURL(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 
 	// TODO: LOAD IN FROM ENV VAR
-	const frontendUrl = "http://localhost:3000"
+	frontendUrl := FRONTEND_URL
 
 	if err != nil {
 		log.Println("[ShortenURL] error while reading body: ", err)
@@ -203,7 +204,7 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		countryName := "India"  // default fallback for local/dev
+		countryName := "India" // default fallback for local/dev
 		countryIsoCode := "IN" // default fallback
 
 		if geoIpCountry != nil && geoIpCountry.Country.IsoCode != "" {
