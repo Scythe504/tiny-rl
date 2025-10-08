@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -16,6 +17,10 @@ import (
 	"github.com/mileusna/useragent"
 	"github.com/scythe504/tiny-rl/internal"
 	"github.com/scythe504/tiny-rl/internal/database"
+)
+
+var (
+	HASH_SALT = os.Getenv("HASH_SALT")
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
@@ -31,6 +36,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.HandleFunc("/{shortCode}", s.getFullUrl)
 
 	r.HandleFunc("/api/shorten", s.shortenURL)
+
+	r.HandleFunc("/api/update-link", s.updateDestUrl)
 
 	r.HandleFunc("/api/analytics/{shortCode}/days", s.getClicksAnalytics)
 
@@ -88,7 +95,7 @@ func (s *Server) shortenURL(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 
 	// TODO: LOAD IN FROM ENV VAR
-	const backendUrl = "http://localhost:8080"
+	const frontendUrl = "http://localhost:3000"
 
 	if err != nil {
 		log.Println("[ShortenURL] error while reading body: ", err)
@@ -146,7 +153,7 @@ func (s *Server) shortenURL(w http.ResponseWriter, r *http.Request) {
 	var resp = struct {
 		Data string `json:"data"`
 	}{
-		Data: fmt.Sprintf("%s/%s", backendUrl, shortCode),
+		Data: fmt.Sprintf("%s/%s", frontendUrl, shortCode),
 	}
 
 	jsonResp, err := json.Marshal(resp)
@@ -197,7 +204,7 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 		}
 
 		countryName := "India"  // default fallback for local/dev
-		countryIsoCode := "IND" // default fallback
+		countryIsoCode := "IN" // default fallback
 
 		if geoIpCountry != nil && geoIpCountry.Country.IsoCode != "" {
 			name := geoIpCountry.Country.Names["en"]
@@ -207,15 +214,19 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 			countryIsoCode = geoIpCountry.Country.IsoCode
 		}
 
+		now := time.Now()
+
+		hashedIp := internal.HashIPWithDate(ipAddr, HASH_SALT, now)
+
 		click := database.Clicks{
 			ShortCode:      linkMap.ShortCode,
 			UserAgent:      userAgent,
 			Referrer:       referrer,
-			IpAddr:         parsedIP.String(),
+			IpAddr:         hashedIp,
 			Browser:        browserName,
 			Country:        countryName,
 			CountryISOCode: countryIsoCode,
-			ClickedAt:      time.Now(),
+			ClickedAt:      now,
 		}
 
 		if err := s.db.LogClick(click); err != nil {
@@ -353,4 +364,37 @@ func (s *Server) getCountryAnalytics(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonResp)
+}
+
+func (s *Server) updateDestUrl(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+
+	if err != nil {
+		log.Println("[UpdateDestinationUrl] Invalid body", err)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var link_map database.LinkMap
+
+	if err = json.Unmarshal(body, &link_map); err != nil {
+		log.Println("[UpdateDestinationUrl] Invalid request body", err)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if !internal.ValidURL(link_map.Url) {
+		http.Error(w, "invalid url", http.StatusBadRequest)
+		return
+	}
+
+	if err = s.db.UpdateShortenedLink(link_map.ShortCode, link_map.Url); err != nil {
+		log.Println("[UpdateDestinationUrl] Failed to update destination", err)
+		http.Error(w, "failed to update destination", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("{\"message\": \"success\"}"))
 }

@@ -8,7 +8,7 @@ import (
 )
 
 type Clicks struct {
-	Id             int    `db:"id" json:"id"`
+	Id             int       `db:"id" json:"id"`
 	ShortCode      string    `db:"short_code" json:"short_code"`
 	Browser        string    `db:"browser" json:"browser"`
 	ClickedAt      time.Time `db:"clicked_at" json:"clicked_at"`

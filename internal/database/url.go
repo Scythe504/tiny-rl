@@ -8,10 +8,10 @@ import (
 )
 
 type LinkMap struct {
-	ShortCode string     `db:"short_code"`
-	Url       string     `db:"url"`
-	CreatedAt *time.Time `db:"created_at"`
-	UpdatedAt *time.Time `db:"updated_at"`
+	ShortCode string     `db:"short_code" json:"short_code"`
+	Url       string     `db:"url" json:"url"`
+	CreatedAt time.Time `db:"created_at" json:"created_at,omitempty"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at,omitempty"`
 }
 
 func (s *service) InsertShortenedLink(link LinkMap) error {
@@ -38,12 +38,7 @@ func (s *service) GetLink(short_code string) (*LinkMap, error) {
 
 	row := s.db.QueryRow(stmt, short_code)
 
-	link := LinkMap{
-		ShortCode: "",
-		Url:       "",
-		CreatedAt: &time.Time{},
-		UpdatedAt: &time.Time{},
-	}
+	var link LinkMap
 
 	err := row.Scan(&link.ShortCode, &link.Url, &link.CreatedAt, &link.UpdatedAt)
 
@@ -53,4 +48,17 @@ func (s *service) GetLink(short_code string) (*LinkMap, error) {
 	}
 
 	return &link, nil
+}
+
+func (s *service) UpdateShortenedLink(shortCode string, destUrl string) error {
+	stmt := `UPDATE link_map SET url=$1 WHERE short_code=$2`
+
+	_, err := s.db.Exec(stmt, destUrl, shortCode)
+
+	if err != nil {
+		log.Println("[UpdateShortenedLink] Update statment error: ", err)
+		return err
+	}
+
+	return nil
 }

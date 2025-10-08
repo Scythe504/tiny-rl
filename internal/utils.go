@@ -2,11 +2,14 @@ package internal
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"math/big"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 func ShortCode() string {
@@ -29,11 +32,15 @@ func ValidURL(rawUrl string) bool {
 		return false
 	}
 
+	if uri.Scheme != "http" && uri.Scheme != "https" {
+		return false
+	}
+
 	port := uri.Port()
 
-	if port != "" && 
-	!(uri.Scheme != "http" && port != "80") && 
-	!(uri.Scheme != "https" && port != "443") {
+	if port != "" &&
+		!(uri.Scheme != "http" && port != "80") &&
+		!(uri.Scheme != "https" && port != "443") {
 		return false
 	}
 
@@ -45,9 +52,9 @@ func ValidURL(rawUrl string) bool {
 		return false
 	}
 
-	if strings.HasSuffix(uri.Hostname(), ".local") || 
-	 uri.Hostname() == "localhost" {
-		return false	
+	if strings.HasSuffix(uri.Hostname(), ".local") ||
+		uri.Hostname() == "localhost" {
+		return false
 	}
 
 	return true
@@ -97,4 +104,20 @@ func getLocalIP() string {
 	}
 
 	return "127.0.0.1"
+}
+
+// HashIPWithDate hashes an IP address together with a secret salt and a date.
+// This anonymizes the IP while still allowing per-day uniqueness.
+func HashIPWithDate(ip string, salt string, t time.Time) string {
+	if ip == "" || salt == "" {
+		return ""
+	}
+
+	date := t.Format("2006-01-02") 
+
+	// Combine IP + date + salt and hash
+	data := ip + date + salt
+	hash := sha256.Sum256([]byte(data))
+
+	return hex.EncodeToString(hash[:])
 }

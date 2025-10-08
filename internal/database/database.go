@@ -20,6 +20,7 @@ type Service interface {
 	Health() map[string]string
 	GetLink(id string) (*LinkMap, error)
 	InsertShortenedLink(link LinkMap) error
+	UpdateShortenedLink(shortCode string, destUrl string) error
 
 	LogClick(click Clicks) error
 	GetClicksOverTime(shortCode string) ([]ClicksPerDay, error)

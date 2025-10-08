@@ -39,5 +39,9 @@ func New() Service {
 
 func (s *service) Close() error {
 	log.Println("Disconnected from geodb: ", dbInstance.db)
-	return s.db.Close()
+	
+	if err := s.db.Close(); err != nil {
+		log.Fatal(err)
+	}
+	return nil
 }
