@@ -34,8 +34,6 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	r.HandleFunc("/health", s.healthHandler)
 
-	r.HandleFunc("/{shortCode}", s.getFullUrl)
-
 	r.HandleFunc("/api/shorten", s.shortenURL)
 
 	r.HandleFunc("/api/update-link", s.updateDestUrl)
@@ -47,6 +45,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 	r.HandleFunc("/api/analytics/{shortCode}/referrers", s.getReferrerAnalytics)
 
 	r.HandleFunc("/api/analytics/{shortCode}/countries", s.getCountryAnalytics)
+
+	r.HandleFunc("/{shortCode:[a-zA-Z0-9_-]+}", s.getFullUrl)
 
 	return r
 }

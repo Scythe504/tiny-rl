@@ -1,15 +1,76 @@
+version: "3.9"
+
 services:
-  psql_bp:
+  postgres:
     image: postgres:latest
     restart: unless-stopped
+    container_name: tinyrl_postgres
     environment:
-      POSTGRES_DB: ${BLUEPRINT_DB_DATABASE}
-      POSTGRES_USER: ${BLUEPRINT_DB_USERNAME}
-      POSTGRES_PASSWORD: ${BLUEPRINT_DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "${BLUEPRINT_DB_PORT}:5432"
+      - "${DB_PORT}:5432"
     volumes:
-      - psql_volume_bp:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: dev
+    container_name: tinyrl_backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${PORT}:8080"
+    environment:
+      APP_ENV: ${APP_ENV}
+      PORT: ${PORT}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: ${DB_SCHEMA}
+      MAXMIND_ACCOUNT_ID: ${MAXMIND_ACCOUNT_ID}
+      MAXMIND_LICENSE_KEY: ${MAXMIND_LICENSE_KEY}
+      POSTGRES_CONN_URL: postgres://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/${DB_DATABASE}?sslmode=disable
+    volumes:
+      - .:/app
+      - air_tmp:/app/tmp
+    restart: unless-stopped
+  seed:
+    # Use the same context but target the build stage so Go toolchain is present
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: build   # <-- IMPORTANT: 'build' stage includes Go & tools
+    container_name: tinyrl_seed
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: ${DB_SCHEMA}
+      POSTGRES_CONN_URL: postgres://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/${DB_DATABASE}?sslmode=disable
+    volumes:
+      - .:/app          # mount source so seed uses live code
+    command: ["bash", "-c", "cd /app && go run ./cmd/seed/main.go"]
+    restart: "no"
+
 
 volumes:
-  psql_volume_bp:
+  postgres_data:
+  air_tmp:

@@ -1,0 +1,44 @@
+# -------------------------
+# Build Stage
+# -------------------------
+FROM golang:1.24 AS build
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Install Air for live reload
+RUN go install github.com/air-verse/air@v1.61.7
+
+# Copy everything
+COPY . .
+
+# Pre-build for production (optional)
+RUN go build -o tiny-rl ./cmd/api/main.go
+
+# -------------------------
+# Runtime Stage (for prod)
+# -------------------------
+FROM debian:bookworm-slim AS prod
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y curl bash && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app/tiny-rl .
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/migrations ./migrations
+COPY --from=build /go/bin/goose /usr/local/bin/goose
+
+RUN chmod +x /app/scripts/*.sh
+
+CMD ["bash", "-c", "bash scripts/download_mmdb.sh && bash scripts/migrate.sh && ./tiny-rl"]
+
+# -------------------------
+# Dev Stage (with Air)
+# -------------------------
+FROM build AS dev
+
+WORKDIR /app
+CMD ["air"]
