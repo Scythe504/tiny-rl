@@ -1,6 +1,3 @@
-Here’s a complete, polished **README.md** for your TinyRL backend including Docker setup, MaxMind instructions, dev/prod workflows, and project notes:
-
-
 # Project: github.com/scythe504/tiny-rl
 
 **TinyRL Backend** – A simple URL shortener with analytics tracking.
