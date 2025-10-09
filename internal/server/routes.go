@@ -184,7 +184,7 @@ func (s *Server) getFullUrl(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		userAgent := r.UserAgent()
-		referrer := r.Referer()
+		referrer := r.Header.Get("X-Original-Referrer")
 		ua := useragent.Parse(userAgent)
 		browserName := ua.Name
 		if browserName == "" {
