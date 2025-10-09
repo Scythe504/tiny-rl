@@ -16,8 +16,8 @@ These instructions will help you get a copy of the project running locally for d
 * [Docker Compose](https://docs.docker.com/compose/install/)
 * Optional: Go 1.24+ if you want to run locally without Docker
 * Local Dependencies: 
-  (https://github.com/pressly/goose) # Necessary for migration.
-  (https://github.com/air-verse/air) # Necessary for hot reloading.
+  - (https://github.com/pressly/goose) # Necessary for migration.
+  - (https://github.com/air-verse/air) # Necessary for hot reloading.
 
 ---
 
